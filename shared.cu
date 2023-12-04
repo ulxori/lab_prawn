@@ -36,7 +36,7 @@ __global__ void calculate(double *result) {
 
 int main(int argc,char **argv) {
 
-    long long result;
+    double result;
     int threadsinblock=1024;
     int blocksingrid=10000; 
 
@@ -47,7 +47,7 @@ int main(int argc,char **argv) {
     if (!hresults) errorexit("Error allocating memory on the host");  
     
      //devie memory allocation (GPU)
-    long *dresults=NULL;
+    double *dresults=NULL;
     if (cudaSuccess!=cudaMalloc((void **)&dresults,blocksingrid*sizeof(double)))
       errorexit("Error allocating memory on the GPU");
     
