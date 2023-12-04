@@ -11,26 +11,26 @@ __host__ void errorexit(const char *s) {
 }
 
 //elements generation
-__global__ void calculate(int *result) {
+__global__ void calculate(double *result) {
     int my_index=blockIdx.x*blockDim.x+threadIdx.x;
-    result[my_index]=1.0f/pow(2.0f, tid);
+    result[my_index]=1.0/pow(2.0, my_index);
 }
 
 
 int main(int argc,char **argv) {
 
-    long long result;
+    double result;
     int threadsinblock=1024;
     int blocksingrid=10000;	
 
     int size = threadsinblock*blocksingrid;
     //memory allocation on host
-    int *hresults=(int*)malloc(size*sizeof(int));
+    double *hresults=(double*)malloc(size*sizeof(double));
     if (!hresults) errorexit("Error allocating memory on the host");	
 
-    int *dresults=NULL;
+    double *dresults=NULL;
     //devie memory allocation (GPU)
-    if (cudaSuccess!=cudaMalloc((void **)&dresults,size*sizeof(int)))
+    if (cudaSuccess!=cudaMalloc((void **)&dresults,size*sizeof(double)))
       errorexit("Error allocating memory on the GPU");
 
     //call to GPU - kernel execution 
@@ -39,7 +39,7 @@ int main(int argc,char **argv) {
       errorexit("Error during kernel launch");
   
     //getting results from GPU to host memory
-    if (cudaSuccess!=cudaMemcpy(hresults,dresults,size*sizeof(int),cudaMemcpyDeviceToHost))
+    if (cudaSuccess!=cudaMemcpy(hresults,dresults,size*sizeof(double),cudaMemcpyDeviceToHost))
        errorexit("Error copying results");
 
 
@@ -50,7 +50,7 @@ int main(int argc,char **argv) {
       result = result + hresults[i];
     }
 
-    printf("\nThe final result is %lld\n",result);
+    printf("\nThe final result is %f\n",result);
 
     //free memory
     free(hresults);
