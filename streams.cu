@@ -1,15 +1,14 @@
-/*
-CUDA - generation of array of N elements and calculates even and odd numbers occurence - with streams
-*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda_runtime.h>
 
 #define DEBUG 0
-#define MAX 10
+#define MAX 15
+#define LAST_STREAM 3
+
 __host__ void errorexit(const char *s) {
-    printf("\n%s\n",s); 
-    exit(EXIT_FAILURE);   
+    printf("\n%s\n",s);
+    exit(EXIT_FAILURE);
 }
 
 __host__ void generate(int *matrix, int matrixSize) {
@@ -21,34 +20,35 @@ __host__ void generate(int *matrix, int matrixSize) {
 
 __global__ void calculation(int *matrix, int* histogram, int matrixSize, int streamChunk, int streamId) {
     int my_index=blockIdx.x*blockDim.x+threadIdx.x+streamId*streamChunk;
+    int start = streamId * streamChunk;
+    int end = streamId==LAST_STREAM ? matrixSize : start + streamChunk;
 
-    if(my_index < matrixSize) {
-      if(my_index < matrixSize) {
-			  atomicAdd(&histogram[matrix[my_index]], 1);
-		  } 
-    } 
+    if(my_index >= start && my_index < end) {
+      //printf("arr[%d]=%d, streamChunk=%d streamId=%d\n", my_index, matrix[my_index], streamChunk, streamId);
+      atomicAdd(&histogram[matrix[my_index]], 1);
+    }
 }
 
 int main(int argc,char **argv) {
 
   ///define number of streams
   int numberOfStreams = 4;
-  
+
   //define array size and allocate memory on host
-  int matrixSize=12;
+  int matrixSize=1000000;
   int *hMatrix=(int*)malloc(matrixSize*sizeof(int));
 
   //get number of chunks to operate per stream
   int streamChunk = matrixSize/numberOfStreams;
 
   printf("Stream chunk is %d \n", streamChunk);
- 
+
   //define kernel size per stream
   int threadsinblock=1000;
-  int blocksingrid=1+((streamChunk-1)/threadsinblock); 
+  int blocksingrid=1+((streamChunk-1)/threadsinblock);
 
   printf("blocksingrid is %d \n", blocksingrid);
-  
+
   //allocate memory for histogram - host
 	int *hHistogram=(int*)malloc(MAX * sizeof(int));
 
@@ -86,7 +86,9 @@ int main(int argc,char **argv) {
 
   //execute operation in each stream - copy chunk of data and run calculations
   for(int i=0; i<numberOfStreams; i++) {
-    cudaMemcpyAsync(&dMatrix[streamChunk*i],&hMatrix[streamChunk*i],streamChunk*sizeof(int),cudaMemcpyHostToDevice, streams[i]);      
+    int toCopy = streamChunk*sizeof(int);
+    if (i==LAST_STREAM) toCopy = (matrixSize - LAST_STREAM * streamChunk) * sizeof(int);
+    cudaMemcpyAsync(&dMatrix[streamChunk*i],&hMatrix[streamChunk*i],toCopy,cudaMemcpyHostToDevice, streams[i]);
     calculation<<<blocksingrid, threadsinblock, threadsinblock*sizeof(double), streams[i]>>>(dMatrix, dHistogram, matrixSize, streamChunk, i);
   }
 
@@ -107,12 +109,12 @@ int main(int argc,char **argv) {
     }
 
   free(hHistogram);
-  
+
   if (cudaSuccess!=cudaFreeHost(hMatrix))
      errorexit("Error when deallocating space on the CPU");
   if (cudaSuccess!=cudaFree(dHistogram))
     errorexit("Error when deallocating space on the GPU");
   if (cudaSuccess!=cudaFree(dMatrix))
     errorexit("Error when deallocating space on the GPU");
-  
+
 }
