@@ -1,0 +1,50 @@
+#include <stdio.h>
+#include <cuda_runtime.h>
+
+__host__ void errorexit(const char *s) {
+    printf("\n%s", s);
+    exit(EXIT_FAILURE);
+}
+
+// Elements generation
+__global__ void calculate(int numberToTest, int *result) {
+    int my_index = blockIdx.x * blockDim.x + threadIdx.x + 2;
+    if (my_index <= sqrt((float)numberToTest) && numberToTest % my_index == 0) {
+        *result = 1;
+    }
+}
+
+int main(int argc, char **argv) {
+    int hResult;
+    int numberToTest = atoi(argv[1]);
+    int threadsinblock = 1024;
+    int blocksingrid = 10000;
+    int *dResult = NULL;
+
+    // Device memory allocation (GPU)
+    if (cudaSuccess != cudaMalloc((void **)&dResult, sizeof(int)))
+        errorexit("Error allocating memory on the GPU");
+
+    // Call to GPU - kernel execution
+    calculate<<<blocksingrid, threadsinblock>>>(numberToTest, dResult);
+
+    if (cudaSuccess != cudaGetLastError())
+        errorexit("Error during kernel launch");
+
+    // Getting results from GPU to host memory
+    if (cudaSuccess != cudaMemcpy(&hResult, dResult, sizeof(int), cudaMemcpyDeviceToHost))
+        errorexit("Error copying results");
+
+    // Calculate sum of all elements
+    if (hResult == 1 || numberToTest < 2) {
+        printf("Number %d is not prime\n", numberToTest);
+    } else {
+        printf("Number %d is prime\n", numberToTest);
+    }
+
+    // Free memory
+    if (cudaSuccess != cudaFree(dResult))
+        errorexit("Error when deallocating space on the GPU");
+
+    return 0; // Added return statement
+}
